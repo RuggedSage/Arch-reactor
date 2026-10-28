@@ -1,0 +1,1492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#05070c">
+<title>Arch Reactor</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{
+    --bg:#05070c; --card:#0d1220; --card2:#111a2c; --line:#1c2740;
+    --txt:#e9eefb; --dim:#7d89a6; --arch:#5ad1e6; --arch2:#2f8fb5;
+    --amber:#f5c451; --ok:#3ddc97; --bad:#ff5d6c; --violet:#9b8cff;
+    --dim2:#5b6880;   /* faint text */
+    --track:#141b2a;  /* progress / bar tracks */
+    --field:#0a0f18;  /* inputs and inset panels */
+    --r:18px; --sb:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;min-height:100dvh;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;overscroll-behavior-y:none}
+  body::before{content:'';position:fixed;inset:0;pointer-events:none;
+    background:
+      radial-gradient(600px 380px at 50% -120px,rgba(90,209,230,.16),transparent 70%),
+      radial-gradient(500px 320px at 100% 110%,rgba(155,140,255,.10),transparent 70%)}
+  .app{position:relative;max-width:520px;margin:0 auto;min-height:100dvh;display:flex;
+    flex-direction:column;padding:0 16px calc(92px + var(--sb))}
+  .hd{display:flex;align-items:center;justify-content:space-between;padding:14px 2px 4px}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:17px;letter-spacing:.2px}
+  .brand .mark{width:22px;height:22px;border-radius:7px;
+    background:linear-gradient(135deg,var(--arch),var(--arch2));
+    box-shadow:0 0 18px rgba(90,209,230,.5)}
+  .badge{font-size:10px;font-weight:900;letter-spacing:.9px;padding:5px 9px;border-radius:999px;
+    border:1px solid var(--line);color:var(--dim);background:var(--card)}
+  .badge.owner{color:#04121a;background:linear-gradient(135deg,var(--arch),#8fe6f4);border-color:transparent}
+  .badge.live{color:var(--ok);border-color:rgba(61,220,151,.35);background:rgba(61,220,151,.08)}
+  main{flex:1}
+  .screen{display:none}.screen.on{display:block;animation:fade .25s ease both}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .card{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);
+    border-radius:var(--r);padding:16px}
+  .lbl{font-size:10px;letter-spacing:1.4px;font-weight:900;color:var(--dim)}
+  .sec{font-size:10.5px;letter-spacing:1.3px;font-weight:900;color:var(--dim);margin:20px 2px 10px}
+  .sub{font-size:12.5px;color:var(--dim);line-height:1.55;margin-top:4px}
+  .fine{font-size:10.5px;color:var(--dim2);text-align:center;margin-top:16px;line-height:1.6}
+
+  /* balance */
+  .bal{margin-top:10px;text-align:center;padding:18px 16px}
+  .amount{font-size:36px;font-weight:800;letter-spacing:-1px;margin-top:6px;
+    font-variant-numeric:tabular-nums;color:var(--txt)}
+  /* gradient text only where it is actually supported — otherwise the number vanishes */
+  @supports ((-webkit-background-clip:text) or (background-clip:text)){
+    .amount{background:linear-gradient(180deg,#fff,#b9c8e4);
+      -webkit-background-clip:text;background-clip:text;color:transparent}
+  }
+  .amount .u{font-size:13px;letter-spacing:1px;-webkit-text-fill-color:var(--arch);color:var(--arch)}
+  .mined{font-size:12px;color:var(--dim);margin-top:4px}
+  .today{display:flex;justify-content:center;gap:8px;margin-top:8px;font-size:11.5px;font-weight:800}
+  .tck{color:var(--ok)}
+  .tusd{color:var(--dim)}
+  .burnbar{display:flex;align-items:center;gap:11px;margin-top:12px;padding:10px 14px;border-radius:14px;
+    border:1px solid rgba(255,120,60,.35);
+    background:linear-gradient(100deg,rgba(255,93,60,.16),rgba(245,196,81,.10) 55%,rgba(255,93,60,.05))}
+  .burnbar.empty{opacity:.55}
+  .burnbar .flame{font-size:20px;filter:drop-shadow(0 0 10px rgba(255,120,60,.75))}
+  .burnbar .btxt{flex:1;min-width:0}
+  .burnbar .bl{font-size:9.5px;font-weight:900;letter-spacing:1.5px;color:#ff9d6b}
+  .burnbar .bsub{font-size:10px;color:#b98a72;margin-top:2px}
+  .burnbar .bnum{text-align:right;line-height:1.1}
+  .burnbar .bnum b{display:block;font-size:17px;font-weight:900;color:#ffc48f;font-variant-numeric:tabular-nums}
+  .burnbar .bnum span{font-size:8.5px;letter-spacing:1px;color:#9c7a66}
+
+  /* reactor core */
+  .corewrap{display:flex;justify-content:center;margin:20px 0 4px}
+  .core{position:relative;width:236px;height:236px;border:0;background:none;padding:0;cursor:pointer;
+    display:grid;place-items:center;transition:transform .12s}
+  .core:active{transform:scale(.965)}
+  .core svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+  .core circle{fill:none;stroke-linecap:round}
+  .track{stroke:#131a2a;stroke-width:5}
+  .charge{stroke:url(#arcGrad);stroke-width:5;transition:stroke-dashoffset .5s linear;
+    filter:drop-shadow(0 0 6px rgba(90,209,230,.6))}
+  .orb{position:absolute;inset:24px;border-radius:50%;display:grid;place-items:center;
+    background:radial-gradient(circle at 34% 28%,#12304a,#0a1522 60%,#070c14);
+    border:1px solid #1d3a52;
+    box-shadow:inset 0 0 40px rgba(90,209,230,.18),0 14px 46px rgba(0,0,0,.6)}
+  .core.ready .orb{border-color:rgba(90,209,230,.6);
+    box-shadow:inset 0 0 60px rgba(90,209,230,.32),0 0 54px rgba(90,209,230,.28),0 14px 46px rgba(0,0,0,.6);
+    animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.015)}}
+  .face{position:relative;text-align:center;display:flex;flex-direction:column;gap:4px;z-index:2}
+  .atom{font-size:30px;line-height:1;font-variant-emoji:text}
+  .st{font-size:15px;font-weight:900;letter-spacing:1.6px;color:var(--arch)}
+  .tm{font-size:11.5px;font-weight:700;color:var(--dim);font-variant-numeric:tabular-nums}
+
+  /* rows */
+  .row{display:flex;justify-content:space-between;align-items:center;gap:12px;
+    padding:12px 14px;border-radius:14px;background:var(--card);border:1px solid var(--line);margin-top:10px}
+  .row .k{font-size:12px;color:var(--dim)}
+  .row .v{font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;text-align:right}
+  .streak{display:flex;gap:6px;justify-content:center;margin-top:14px}
+  .streakhint{text-align:center;font-size:10.5px;color:var(--dim2);margin-top:7px}
+  .streakhint.warn{color:var(--amber)}
+  .dot{flex:1;max-width:44px;height:6px;border-radius:99px;background:var(--track)}
+  .dot.on{background:linear-gradient(90deg,var(--arch2),var(--arch))}
+
+  /* buttons */
+  .btn{width:100%;padding:14px 16px;border-radius:14px;border:1px solid var(--line);
+    background:var(--card2);color:var(--txt);font-size:14px;font-weight:800;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:8px;transition:transform .1s}
+  .btn:active{transform:scale(.985)}
+  .btn.danger{color:var(--bad);border-color:rgba(255,93,108,.35)}
+  .btn.primary{background:linear-gradient(135deg,var(--arch),var(--arch2));border-color:transparent;color:#04121a}
+  .btn.ghost{background:transparent}
+  .btn:disabled{opacity:.45;cursor:default}
+  .btn.sm{padding:11px 14px;font-size:12px;border-radius:11px;width:auto;min-height:40px}
+
+  /* tasks */
+  .task{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);
+    border-radius:16px;padding:14px;margin-bottom:10px}
+  .task .st2{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;flex:0 0 auto;
+    background:rgba(90,209,230,.12);color:var(--arch);font-weight:900}
+  .task.done .st2{background:rgba(61,220,151,.14);color:var(--ok)}
+  .task .mid{flex:1;min-width:0}
+  .task .tt{font-size:13.5px;font-weight:700;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .task .tr{font-size:11.5px;color:var(--arch);font-weight:800}
+  .empty{text-align:center;color:var(--dim);font-size:12.5px;padding:18px 0}
+
+  /* wallet */
+  .addr{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--arch);word-break:break-all;
+    background:var(--field);border:1px solid var(--line);border-radius:12px;padding:11px;margin-top:8px;line-height:1.5}
+  .lockbox{border:1px dashed rgba(245,196,81,.35);background:rgba(245,196,81,.06);border-radius:14px;padding:14px;margin-top:12px}
+  .lockbox .t{font-size:12.5px;font-weight:800;color:var(--amber);margin-bottom:6px}
+  .lockbox p{margin:0;font-size:11.5px;line-height:1.6;color:#c8b98d}
+  table.fee{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px}
+  table.fee td{padding:7px 0;border-bottom:1px solid #18213a;color:var(--dim)}
+  table.fee td:last-child{text-align:right;color:var(--txt);font-weight:700;font-variant-numeric:tabular-nums}
+  .prog{height:8px;border-radius:99px;background:var(--track);overflow:hidden;margin-top:6px}
+  .prog i{display:block;height:100%;background:linear-gradient(90deg,var(--arch2),var(--arch));border-radius:99px;transition:width .4s}
+
+  /* owner */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px}
+  .stat .n{font-size:19px;font-weight:800;margin-top:4px;color:var(--arch);font-variant-numeric:tabular-nums}
+  .split{display:flex;height:12px;border-radius:99px;overflow:hidden;margin:14px 0 10px;background:var(--track)}
+  .split i{display:block;height:100%}
+  .legend{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11.5px;color:var(--dim)}
+  .legend b{color:var(--txt);margin-left:auto}
+  .legend div{display:flex;align-items:center;gap:7px}
+  .sw{width:9px;height:9px;border-radius:3px;display:inline-block}
+  .field{margin-top:10px}
+  .field label{display:block;font-size:10.5px;font-weight:900;letter-spacing:.8px;color:var(--dim);margin-bottom:6px}
+  .field input{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);
+    background:var(--field);color:var(--txt);font-size:13px;outline:none}
+  .field input:focus{border-color:var(--arch2)}
+  .note{font-size:11.5px;line-height:1.6;color:var(--dim);background:rgba(155,140,255,.07);
+    border:1px solid rgba(155,140,255,.18);border-radius:12px;padding:11px;margin-top:12px}
+  .note b{color:var(--violet)}
+  .note b{color:#c9c3ff}
+  .toggle{display:flex;justify-content:space-between;align-items:center;padding:12px 0}
+  .tbtn{width:46px;height:26px;border-radius:99px;background:#1b2336;border:1px solid var(--line);
+    position:relative;cursor:pointer;flex:0 0 auto}
+  .tbtn i{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;
+    background:var(--dim);transition:.2s}
+  .tbtn.on{background:rgba(61,220,151,.25);border-color:rgba(61,220,151,.5)}
+  .tbtn.on i{left:22px;background:var(--ok)}
+
+  /* nav */
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;
+      transition-duration:.001ms !important}
+  }
+
+  .nav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;gap:2px;
+    padding:9px 10px calc(9px + var(--sb));max-width:520px;margin:0 auto;
+    background:linear-gradient(180deg,rgba(5,7,12,0),rgba(5,7,12,.95) 34%)}
+  .nav button{flex:1;border:1px solid transparent;background:none;color:var(--dim2);border-radius:13px;
+    padding:8px 2px;display:flex;flex-direction:column;align-items:center;gap:3px;
+    font-size:9.5px;font-weight:900;letter-spacing:.3px;cursor:pointer}
+  .nav button .ni{font-size:15px;line-height:1;width:1em;height:1em;display:grid;place-items:center;
+    font-variant-emoji:text}
+  .nav button.on{color:var(--arch);background:rgba(90,209,230,.08);border-color:rgba(90,209,230,.22)}
+
+  /* misc */
+  /* keyboard focus, everywhere */
+  .btn:focus-visible, .nav button:focus-visible, .seg button:focus-visible,
+  .crd:focus-visible, input:focus-visible, .tbtn:focus-visible,
+  #copyRef:focus-visible, #shareRef:focus-visible, #passBtn:focus-visible {
+    outline:2px solid var(--arch);
+    outline-offset:2px;
+  }
+
+  .toast{position:fixed;left:50%;bottom:calc(104px + var(--sb));transform:translate(-50%,14px);
+    background:#16203a;border:1px solid var(--line);padding:11px 16px;border-radius:99px;
+    font-size:12.5px;font-weight:700;opacity:0;pointer-events:none;transition:.25s;z-index:120;
+    max-width:88vw;text-align:center;line-height:1.45}
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+  .overlay{position:fixed;inset:0;background:rgba(3,5,9,.88);backdrop-filter:blur(6px);
+    display:none;align-items:center;justify-content:center;padding:18px;z-index:90}
+  .overlay.on{display:flex}
+  .modal{width:100%;max-width:420px;background:var(--card);border:1px solid var(--line);
+    border-radius:18px;padding:12px}
+  .mtop{display:flex;justify-content:space-between;align-items:center;padding:2px 4px 10px}
+  .mtop span{font-size:10px;letter-spacing:1.3px;font-weight:900;color:var(--dim)}
+  .mclose{border:1px solid var(--line);background:var(--card2);color:var(--txt);font-size:11.5px;
+    font-weight:800;padding:7px 12px;border-radius:99px;cursor:pointer}
+  .mclose:disabled{opacity:.5}
+  .mbody{min-height:240px;display:grid;place-items:center;border-radius:12px;overflow:hidden}
+  /* ad gate: the whole app is unreachable until the ad finishes */
+  body.gated{overflow:hidden}
+  body.gated .app{visibility:hidden}
+  body.gated::before{opacity:0}
+
+  /* launch ad: full-screen, cannot be dismissed early */
+  .overlay.launch{padding:0;background:rgba(3,5,9,.97)}
+  .overlay.launch .modal{width:100%;max-width:520px;height:100%;max-height:none;border-radius:0;
+    display:flex;flex-direction:column;border:0;background:var(--card)}
+  .overlay.launch .mbody{flex:1;min-height:0}
+  .overlay.launch .mtop{padding:12px 6px 12px}
+  .adph{display:grid;place-items:center;text-align:center;min-height:70px;padding:10px;
+    border:1px dashed #22304d;border-radius:14px;color:#4f5c78;font-size:10px;letter-spacing:1.1px;font-weight:900;
+    background:repeating-linear-gradient(45deg,#0a0e17,#0a0e17 10px,#0c1220 10px,#0c1220 20px)}
+  .adslot{margin-top:14px;border-radius:14px;overflow:hidden}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="hd">
+    <div class="brand"><span class="mark"></span> Arch Reactor</div>
+    <div style="display:flex;gap:6px">
+      <span class="badge" id="netBadge">DEMO</span>
+      <span class="badge owner" id="ownerBadge" hidden>OWNER</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============ REACTOR ============ -->
+    <section class="screen on" data-s="reactor">
+      <div class="card bal">
+        <div class="lbl">REACTOR BALANCE</div>
+        <div class="amount"><span id="bal">0</span> <span class="u">ARCHIE</span></div>
+        <div class="mined" id="minedLine">Nothing mined yet</div>
+        <div class="usd" id="usdLine" hidden></div>
+        <div class="today">
+          <span class="tck">+<span id="todayAmt">0</span> today</span>
+          <span class="tusd" id="todayUsd">—</span>
+        </div>
+      </div>
+
+      <div class="corewrap">
+        <button class="core" id="core" aria-label="Collect">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <defs>
+              <linearGradient id="arcGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#5ad1e6"/><stop offset="100%" stop-color="#9b8cff"/>
+              </linearGradient>
+            </defs>
+            <circle class="track" cx="60" cy="60" r="54"/>
+            <circle class="charge" id="ring" cx="60" cy="60" r="54" style="stroke-dasharray:339.29;stroke-dashoffset:339.29"/>
+          </svg>
+          <span class="orb">
+            <span class="face">
+              <span class="atom" id="atom">✦</span>
+              <span class="st" id="st">CHARGING</span>
+              <span class="tm" id="tm">0%</span>
+            </span>
+          </span>
+        </button>
+      </div>
+
+      <div class="streak" id="streak"></div>
+      <div class="streakhint" id="streakHint">Claim within 48h or the streak resets</div>
+
+      <div class="row"><span class="k">Next yield</span><span class="v"><span id="nextAmt">70</span> ARCHIE</span></div>
+      <div class="row"><span class="k">Streak bonus</span><span class="v" id="streakBonus">+0%</span></div>
+      <div class="row">
+        <span class="k">Pool (on-chain)</span>
+        <span class="v"><span id="poolLeft">—</span> <span id="poolNote" style="font-weight:600;color:var(--dim);font-size:10px">loading</span></span>
+      </div>
+
+      <div class="burnbar" id="burnBar">
+        <span class="flame">🔥</span>
+        <div class="btxt">
+          <div class="bl">BURNED FOREVER</div>
+        </div>
+        <div class="bnum"><b id="burnAmt">0</b><span>ARCHIE</span></div>
+      </div>
+
+      <div class="adslot" id="ad1"></div>
+      <div class="fine">The reactor holds one charge per 24 hours.<br>ARCHIE is mined here and nowhere else.</div>
+    </section>
+
+    <!-- ============ PLAY ============ -->
+    <section class="screen" data-s="play">
+      <style>
+        .usd{font-size:12px;color:var(--arch);font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
+        .gcard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:15px;margin-bottom:12px}
+        .gcard h3{margin:0 0 4px;font-size:14px;letter-spacing:.2px}
+        .gcard p{margin:0 0 10px;font-size:11.5px;line-height:1.55;color:var(--dim)}
+        .seg{display:flex;gap:6px;margin:8px 0}
+        .seg button{flex:1;padding:11px 4px;min-height:40px;border-radius:11px;border:1px solid var(--line);
+          background:var(--field);color:var(--dim);font-size:12px;font-weight:800;cursor:pointer}
+        .seg button.on{border-color:var(--arch2);color:var(--arch);background:rgba(90,209,230,.08)}
+        .deck{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin:12px 0}
+        .crd{aspect-ratio:1/1.35;border-radius:10px;border:1px solid var(--line);background:#0d1524;
+          display:grid;place-items:center;font-size:16px;color:#33415f;cursor:pointer;
+          transition:.15s;user-select:none}
+        .crd.pick{border-color:var(--arch);background:rgba(90,209,230,.13);color:var(--arch)}
+        .crd.good{border-color:var(--ok);background:rgba(61,220,151,.15);color:var(--ok)}
+        .crd.bad{border-color:var(--bad);background:rgba(255,93,108,.1);color:var(--bad)}
+        .crd.locked{opacity:.45;cursor:default}
+  .crd:disabled{cursor:default}
+        button.crd{appearance:none;-webkit-appearance:none;font:inherit;padding:0;color:inherit;text-align:center}
+        .crd:focus-visible{outline:2px solid var(--arch);outline-offset:2px}
+        .seg.locked{opacity:.4;pointer-events:none}
+        .hint{font-size:11.5px;color:var(--dim);min-height:18px;margin:6px 0}
+        .odds{font-size:10.5px;color:var(--dim2);line-height:1.6;margin-top:8px}
+      </style>
+
+      <div class="gcard">
+        <h3>Card Vault <span style="font-size:10px;color:var(--dim)">10 cards · 3 hidden</span></h3>
+        <p>Pick 3 cards. You get 8 attempts. Match all three to win double your wager.
+           Miss and you get half back — the other half is burned forever.</p>
+        <div class="seg" id="crdAmt">
+          <button data-w="100" class="on">100</button>
+          <button data-w="250">250</button>
+          <button data-w="500">500</button>
+        </div>
+        <button class="btn primary" id="crdStart">Play</button>
+        <div class="odds" id="crdNote">2 wins allowed per 24 hours.</div>
+      </div>
+
+      <div id="gameArea"></div>
+      <div class="adslot" id="ad5"></div>
+    </section>
+
+    <!-- ============ TASKS ============ -->
+    <section class="screen" data-s="tasks">
+      <div class="card" style="margin-top:10px">
+        <div class="lbl">BONUS YIELD</div>
+        <div class="sub">Complete a task, come back, tap Claim. Joining is checked by the bot — leave later and the reward is removed.</div>
+      </div>
+      <div class="sec">AVAILABLE</div>
+      <div id="tasks"><div class="empty">No tasks yet.</div></div>
+      <div class="adslot" id="ad2"></div>
+    </section>
+
+    <!-- ============ REFER ============ -->
+    <section class="screen" data-s="refer">
+      <div class="card" style="margin-top:10px">
+        <div class="lbl">YOUR REACTOR CODE</div>
+        <div class="addr" style="text-align:center;font-size:18px;letter-spacing:3px;color:var(--arch)" id="refCode">——</div>
+        <button class="btn primary" id="copyRef" style="margin-top:12px">Copy invite link</button>
+        <button class="btn ghost" id="shareRef" style="margin-top:8px">Share to Telegram</button>
+        <div class="note" id="refNote">Each miner you bring pays you a cut of everything they mine, forever.</div>
+        <div class="note" id="refStatus" hidden></div>
+      </div>
+      <div class="sec">YOUR NETWORK</div>
+      <div class="card">
+        <div class="grid">
+          <div class="stat"><div class="lbl">MINERS</div><div class="n" id="refCount">0</div></div>
+          <div class="stat"><div class="lbl">EARNED</div><div class="n" id="refEarned">0</div></div>
+        </div>
+        <div id="refList" style="margin-top:12px"></div>
+      </div>
+      <div class="adslot" id="ad3"></div>
+    </section>
+
+    <!-- ============ WALLET ============ -->
+    <section class="screen" data-s="wallet">
+      <div class="card" style="margin-top:10px">
+        <div class="lbl">WITHDRAW TO WALLET</div>
+        <div id="wdStatus">
+          <div class="lockbox">
+            <div class="t">LOCKED — TWO THINGS MUST LAND FIRST</div>
+            <p>Your ARCHIE keeps compounding in the meantime. Withdrawals need:</p>
+            <p style="margin-top:8px">1. A <b>server-side ledger</b> — balances in a browser can be edited,
+              so nothing can be paid against them.<br>
+              2. <b>Funded gas</b> — each payout costs TON, which only exists once ads or a pool exist.</p>
+            <p style="margin-top:8px">We would rather stay locked than promise a payout we cannot fund.</p>
+          </div>
+        </div>
+
+        <div class="prog"><i id="wdProg" style="width:0%"></i></div>
+        <div class="sub" id="wdHint">—</div>
+
+        <table class="fee">
+          <tr><td>Minimum withdrawal</td><td><span id="wdMin">100,000</span> ARCHIE</td></tr>
+          <tr><td>Withdrawal fee</td><td><span id="wdFee">5,000</span> ARCHIE</td></tr>
+          <tr><td>Fee split</td><td id="wdSplit">—</td></tr>
+          <tr><td>Network gas</td><td>paid by the app</td></tr>
+        </table>
+        <button class="btn" id="wdBtn" disabled>Withdraw</button>
+      </div>
+
+      <div class="sec">TOKEN</div>
+      <div class="card">
+        <div class="lbl">CONTRACT</div>
+        <div class="addr" id="tokenAddr">not configured yet</div>
+        <div class="note">Mined in this app only. Nothing else issues ARCHIE — supply is fixed and
+          minting was closed at deployment.</div>
+      </div>
+      <div class="sec">SUPPLY</div>
+      <div class="card">
+        <div class="row" style="margin:0;border:0;background:none;padding:7px 0">
+          <span class="k">Minted (on-chain)</span><span class="v" id="sMinted">2,000,000,000</span>
+        </div>
+        <div class="row" style="margin:0;border:0;background:none;padding:7px 0">
+          <span class="k">Locked forever (unreachable)</span>
+          <span class="v" id="sLocked">200,000,000</span>
+        </div>
+        <div class="row" style="margin:0;border:0;background:none;padding:7px 0">
+          <span class="k">Burned (on-chain + pending)</span>
+          <span class="v" style="color:var(--amber)" id="sBurned">0</span>
+        </div>
+        <div class="row" style="margin:0;border:0;background:none;padding:7px 0">
+          <span class="k">Remaining supply</span><span class="v" id="sRemaining">2,000,000,000</span>
+        </div>
+        <div class="note">Burns are permanent and public. Each recorded burn is settled on-chain in a
+          monthly batch, so anyone can verify the total against the token contract — no hidden
+          mechanics, nothing to discover later.</div>
+      </div>
+      <div class="adslot" id="ad4"></div>
+    </section>
+
+    <!-- ============ OWNER ============ -->
+    <section class="screen" data-s="owner">
+
+      <div class="card" id="ownerClaim" hidden style="margin-top:10px">
+        <div class="lbl">CLAIM OWNERSHIP</div>
+        <div class="sub" style="margin:8px 0 12px">
+          Open this app <b>inside Telegram</b> (not a browser) and enter the claim phrase from
+          <code>CFG.OWNER_CLAIM_CODE</code>. The account you claim from becomes the owner permanently,
+          on this device.
+        </div>
+        <div class="field">
+          <label>Claim phrase</label>
+          <input id="claimCode" placeholder="ARCHIE-OWNER-…" autocomplete="off" spellcheck="false">
+        </div>
+        <button class="btn primary" id="claimBtn" style="margin-top:10px">Claim ownership</button>
+        <div class="note" id="claimNote">This device's id is <b id="claimUid">—</b>.
+          Claim from your phone inside Telegram so it binds to your real Telegram account.</div>
+      </div>
+
+      <div id="ownerBody" hidden>
+      <div class="sec">OWNER CONSOLE</div>
+      <div class="grid">
+        <div class="stat"><div class="lbl">MINERS (HERE)</div><div class="n" id="oUsers">1</div></div>
+        <div class="stat"><div class="lbl">MINED (HERE)</div><div class="n" id="oMined">0</div></div>
+        <div class="stat"><div class="lbl">YOUR 20%</div><div class="n" id="oYou">0</div></div>
+        <div class="stat"><div class="lbl">POOL (CHAIN)</div><div class="n" id="oPool">—</div></div>
+      </div>
+
+      <div class="sec">SUPPLY</div>
+      <div class="card">
+        <div class="split">
+          <i style="width:70%;background:linear-gradient(90deg,#5ad1e6,#2f8fb5)"></i>
+          <i style="width:20%;background:#f5c451"></i>
+          <i style="width:10%;background:#3a4260"></i>
+        </div>
+        <div class="legend">
+          <div><span class="sw" style="background:#5ad1e6"></span>Community<b>70%</b></div>
+          <div><span class="sw" style="background:#f5c451"></span>Yours<b>20%</b></div>
+          <div><span class="sw" style="background:#3a4260"></span>Locked forever<b>10%</b></div>
+        </div>
+        <div class="note">2,000,000,000 ARCHIE, minting closed. Only this app can distribute the 70%.
+          200,000,000 sit at an address nobody holds a key for — they can never move again.</div>
+      </div>
+
+      <div class="sec">ECONOMICS <span style="color:var(--dim);font-weight:400">— yours to set</span></div>
+      <div class="card">
+        <div class="field"><label>Daily claim (ARCHIE)</label><input id="ecBase" inputmode="numeric"></div>
+        <div class="field"><label>Max task reward</label><input id="ecMaxTask" inputmode="numeric"></div>
+        <div class="field"><label>Task claims per day</label><input id="ecTaskDay" inputmode="numeric"></div>
+        <div class="field"><label>Minimum withdrawal</label><input id="ecMin" inputmode="numeric"></div>
+        <div class="field"><label>Withdrawal fee</label><input id="ecFee" inputmode="numeric"></div>
+        <div class="field"><label>Referral commission (%)</label><input id="ecRef" inputmode="decimal"></div>
+        <div class="field"><label>Welcome bonus for referred users</label><input id="ecJoin" inputmode="numeric"></div>
+        <button class="btn primary" id="ecSave" style="margin-top:12px">Save economics</button>
+        <button class="btn ghost" id="ecReset" style="margin-top:8px">Reset to defaults</button>
+        <div class="note" id="ecNote">Applies to this device and everyone mining from it.
+          Changing the daily claim also changes how fast the 70% pool is spent.</div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="margin:0;border:0;background:none;padding:8px 0">
+          <span class="k">Live: daily yield</span><span class="v"><span id="eBase">70</span> ARCHIE</span>
+        </div>
+        <div class="row" style="margin:0;border:0;background:none;padding:8px 0">
+          <span class="k">Live: referral cut</span><span class="v" id="eRef">5%</span>
+        </div>
+        <div class="row" style="margin:0;border:0;background:none;padding:8px 0">
+          <span class="k">Live: withdrawal fee</span><span class="v"><span id="eFee">62</span> ARCHIE</span>
+        </div>
+        <div class="toggle">
+          <span style="font-size:12.5px">
+            Withdrawals
+            <div style="font-size:10.5px;color:var(--dim);margin-top:2px">Only useful once the ledger and gas exist</div>
+          </span>
+          <div class="tbtn" id="wdToggle"><i></i></div>
+        </div>
+      </div>
+
+      <div class="sec">TASKS</div>
+      <div class="card">
+        <div class="field"><label>Title</label><input id="tTitle" placeholder="Join the channel"></div>
+        <div class="field"><label>Link</label><input id="tUrl" placeholder="https://t.me/..."></div>
+        <div class="field"><label>Reward (ARCHIE)</label><input id="tReward" placeholder="2500" inputmode="numeric"></div>
+        <button class="btn" id="tAdd" style="margin-top:10px">Add task</button>
+        <div id="tList" style="margin-top:12px"></div>
+      </div>
+
+      <div class="sec">LINK THE TOKEN</div>
+      <div class="card">
+        <div class="field">
+          <label>ARCHIE contract address</label>
+          <input id="tokenInput" placeholder="EQ..." spellcheck="false">
+        </div>
+        <div class="field">
+          <label>Pool wallet (holds the 90%)</label>
+          <input id="poolInput" placeholder="UQ..." spellcheck="false">
+        </div>
+        <button class="btn" id="saveToken" style="margin-top:10px">Save</button>
+        <div class="note">These two values are what tie the app to the token. Nothing else is needed —
+          the token is standard, so any wallet reads it.</div>
+      </div>
+
+      <div class="sec">SELF-TEST</div>
+      <div class="card">
+        <div class="sub" style="margin:0 0 10px">Runs the checks that catch configuration
+          mistakes. All green means the app is wired correctly on this device.</div>
+        <button class="btn primary" id="selfTest">Run self-test</button>
+        <div id="testOut" style="margin-top:12px"></div>
+      </div>
+
+      <div class="sec">ACCESS</div>
+      <div class="card">
+        <div class="row" style="margin:0;border:0;background:none;padding:0">
+          <span class="k">Owner bound to</span><span class="v" id="myId">—</span>
+        </div>
+        <button class="btn ghost" id="copyOwnerId" style="margin-top:10px">Copy id for CFG.OWNER_TELEGRAM_ID</button>
+        <button class="btn ghost" id="releaseOwner" style="margin-top:8px;color:var(--bad)">Release ownership on this device</button>
+        <div class="note">Ownership lives on this device. To make it permanent — surviving a cleared
+          browser, a new phone, and every other visitor — copy this id into
+          <code>CFG.OWNER_TELEGRAM_ID</code> and redeploy. Real control is that plus the pool wallet key.</div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="nav">
+    <button class="on" data-go="reactor"><span class="ni">◉</span>Reactor</button>
+    <button data-go="play"><span class="ni">◈</span>Play</button>
+    <button data-go="tasks"><span class="ni">◇</span>Tasks</button>
+    <button data-go="refer"><span class="ni">◎</span>Refer</button>
+    <button data-go="wallet"><span class="ni">▤</span>Wallet</button>
+    <button data-go="owner" id="ownerTab" hidden><span class="ni">♛</span>Owner</button>
+  </nav>
+</div>
+
+<div class="overlay" id="adOverlay">
+  <div class="modal">
+    <div class="mtop"><span>SPONSORED</span><button class="mclose" id="adClose" disabled>Close</button></div>
+    <div class="mbody" id="adBody"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ══════════════════════════════════════════════════════════════
+     CONFIG — the only block you edit
+     ══════════════════════════════════════════════════════════════ */
+  var CFG = {
+    // paste these from your Phase 1 deploy
+    TOKEN_ADDRESS: '',
+    POOL_ADDRESS: '',
+
+    // Your numeric Telegram id (@userinfobot). Leave empty to claim ownership
+    // from inside the app once, using OWNER_CLAIM_CODE below.
+    OWNER_TELEGRAM_ID: '',
+
+    // One-time claim phrase. Change this to anything only you know.
+    // Whoever enters it (inside Telegram) becomes the permanent owner on that account.
+    OWNER_CLAIM_CODE: 'ARCHIE-OWNER-2026',
+
+    // mining
+    CLAIM_BASE: 70,
+    CYCLE_MS: 24 * 60 * 60 * 1000,
+    STREAK_STEP: 0.05,
+    STREAK_MAX: 7,
+    REF_BONUS: 200,           // paid to a user who joins with a referral code
+    REF_RATE: 0.05,
+
+    // hard caps
+    MAX_TASK_REWARD: 500,
+    TASK_DAILY_LIMIT: 4,
+
+    // withdrawals — keep false until the ledger + gas exist
+    WITHDRAWALS_OPEN: false,
+    MIN_WITHDRAW: 2500,
+    WITHDRAW_FEE: 62,
+    FEE_SPLIT: { burn: 30, liquidity: 60, ops: 10 },
+
+    // token
+    TOTAL_SUPPLY: 2000000000,
+    POOL_SHARE_PCT: 70,      // community / mined in the app
+    OWNER_SHARE_PCT: 20,     // yours, liquid
+    LOCKED_SHARE_PCT: 10,    // sent to an address nobody can ever sign for
+
+    // monetisation
+    ADS: {
+      enabled: true,
+      provider: 'placeholder',   // 'placeholder' | 'custom'
+      onOpen: true,              // ad gate on every app open
+      showPlaceholders: false,   // true = draw empty slots while developing
+      launchCloseSeconds: 5,     // seconds the ad must play before access
+      gateMaxSeconds: 15,        // hard safety: never trap a user longer than this
+      customBanner: '',
+      customInterstitial: ''
+    },
+
+    // no backend: this build is a static app (see AUDIT.md C3)
+  };
+
+  /* ══════════════════════════════════════════════════════════════
+     helpers
+     ══════════════════════════════════════════════════════════════ */
+  var $ = function(id){ return document.getElementById(id); };
+  var fmt = function(n){ return Number(n || 0).toLocaleString('en-US'); };
+  var clamp = function(v,a,b){ return Math.max(a, Math.min(b, v)); };
+  var RING = 339.29;
+
+  function toast(msg){
+    var t = $('toast');
+    t.textContent = msg;
+    t.classList.add('on');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function(){ t.classList.remove('on'); }, 2400);
+  }
+
+  function copyText(text){
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch(e){}
+    document.body.removeChild(ta);
+    return Promise.resolve();
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     telegram bridge
+     ══════════════════════════════════════════════════════════════ */
+  var TG = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+  if (TG) {
+    try { TG.ready(); TG.expand(); } catch(e){}
+    try { if (TG.setHeaderColor) TG.setHeaderColor('#05070c'); } catch(e){}
+  }
+  var tgUser = (TG && TG.initDataUnsafe && TG.initDataUnsafe.user) ? TG.initDataUnsafe.user : null;
+
+  function haptic(kind){
+    try {
+      if (!TG || !TG.HapticFeedback) return;
+      if (kind === 'ok') TG.HapticFeedback.notificationOccurred('success');
+      else if (kind === 'err') TG.HapticFeedback.notificationOccurred('error');
+      else TG.HapticFeedback.impactOccurred('medium');
+    } catch(e){}
+  }
+
+  var UID, UNAME;
+  try {
+    UID = tgUser ? String(tgUser.id) : (localStorage.getItem('ar.guest') || '');
+    if (!UID) { UID = 'g_' + Math.random().toString(36).slice(2,10); localStorage.setItem('ar.guest', UID); }
+    UNAME = tgUser ? ([tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || 'Miner') : 'Guest';
+  } catch(e) { UID = 'g_x'; UNAME = 'Guest'; }
+
+  /* ══════════════════════════════════════════════════════════════
+     state
+     ══════════════════════════════════════════════════════════════ */
+  var KEY = 'ar.v1.' + UID;
+  var S = null;
+
+  function fresh(){
+    return {
+      balance: 0, mined: 0, lastClaimAt: 0, streak: 0, claims: 0,
+      refCode: makeCode(), referredBy: null, referrals: [],
+      tasks: [], taskDone: {}, withdrawalsOpen: CFG.WITHDRAWALS_OPEN,
+      token: CFG.TOKEN_ADDRESS, pool: CFG.POOL_ADDRESS,
+      adViews: 0, actions: 0,
+      burned: 0, earnedToday: 0, earnedDay: '',
+      ownerId: '', taskDay: '', tasksToday: 0, refMilesPaid: 0, cardRound: null
+    };
+  }
+
+  function makeCode(){
+    var h = 5381;
+    for (var i = 0; i < UID.length; i++) h = ((h * 33) ^ UID.charCodeAt(i)) >>> 0;
+    return 'AR' + h.toString(36).toUpperCase().slice(0, 5);
+  }
+
+  function load(){
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return fresh();
+      var o = JSON.parse(raw), base = fresh();
+      for (var k in base) if (!(k in o)) o[k] = base[k];
+      return o;
+    } catch(e) { return fresh(); }
+  }
+  function save(){
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){}
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     daily earnings tracking (purely local — no server involved)
+     ══════════════════════════════════════════════════════════════ */
+  function dayKey(t){ return new Date(t || Date.now()).toISOString().slice(0, 10); }
+
+  // Owner-controlled economics. These override CFG at runtime and are stored with
+  // the account, so only the owner account can change them.
+  function econ(){
+    var e = S.econ || {};
+    return {
+      claimBase:      e.claimBase      != null ? e.claimBase      : CFG.CLAIM_BASE,
+      maxTaskReward:  e.maxTaskReward  != null ? e.maxTaskReward  : CFG.MAX_TASK_REWARD,
+      taskDailyLimit: e.taskDailyLimit != null ? e.taskDailyLimit : CFG.TASK_DAILY_LIMIT,
+      minWithdraw:    e.minWithdraw    != null ? e.minWithdraw    : CFG.MIN_WITHDRAW,
+      withdrawFee:    e.withdrawFee    != null ? e.withdrawFee    : CFG.WITHDRAW_FEE,
+      refRate:        e.refRate        != null ? e.refRate        : CFG.REF_RATE,
+      refJoinBonus:   e.refJoinBonus   != null ? e.refJoinBonus   : CFG.REF_BONUS
+    };
+  }
+
+  // ── referral registry: code -> user id, on this device only ──────
+  function reg(){ try { return JSON.parse(localStorage.getItem('ar.codes') || '{}'); } catch(e){ return {}; } }
+  function saveRun(m){ try { localStorage.setItem('ar.codes', JSON.stringify(m)); } catch(e){} }
+  function registerCode(){ var m = reg(); m[S.refCode] = UID; saveRun(m); }
+
+  function creditReferrer(amount){
+    if (!S.referredBy) return;
+    var m = reg();
+    var uid = m[S.referredBy];
+    if (!uid || uid === UID) return;                 // referrer not on this device
+    var key = 'ar.v1.' + uid, rs = null;
+    try { rs = JSON.parse(localStorage.getItem(key) || 'null'); } catch(e){ rs = null; }
+    if (!rs) return;
+
+    var cut = Math.floor(amount * econ().refRate);
+    rs.balance = (rs.balance || 0) + cut;
+    rs.refEarned = (rs.refEarned || 0) + cut;
+    rs.referrals = rs.referrals || [];
+    var row = null;
+    for (var i = 0; i < rs.referrals.length; i++) if (rs.referrals[i].id === UID) row = rs.referrals[i];
+    if (!row) { row = { id: UID, name: UNAME, earned: 0 }; rs.referrals.push(row); }
+    row.earned += cut;
+
+    // milestone: +50 for every 1,000 mined by this referee, max 5
+    var crossings = Math.min(5, Math.floor((S.mined || 0) / 1000));
+    if (crossings > (S.refMilesPaid || 0)) {
+      var n = crossings - (S.refMilesPaid || 0);
+      rs.balance += n * 50;
+      rs.refEarned += n * 50;
+      row.earned += n * 50;
+      S.refMilesPaid = crossings;
+    }
+    try { localStorage.setItem(key, JSON.stringify(rs)); } catch(e){}
+  }
+
+  // L1: re-read before mutating so two tabs can't both spend the same balance
+  function refreshFromStorage(){
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) { var o = JSON.parse(raw); if (o && typeof o.balance === 'number') S.balance = o.balance; }
+    } catch(e){}
+  }
+
+  function noteEarn(amount){
+    var d = dayKey();
+    if (S.earnedDay !== d) { S.earnedDay = d; S.earnedToday = 0; }
+    S.earnedToday += amount;
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     economics
+     ══════════════════════════════════════════════════════════════ */
+  function streakPct(streak){ return Math.min(Math.max(streak,0), CFG.STREAK_MAX) * CFG.STREAK_STEP; }
+  function claimAmount(streak){ return Math.round(econ().claimBase * (1 + streakPct(Math.max(0, streak - 1)))); }
+  function chargePct(){
+    if (!S.lastClaimAt) return 1;
+    return clamp((Date.now() - S.lastClaimAt) / CFG.CYCLE_MS, 0, 1);
+  }
+  function isReady(){ return chargePct() >= 1; }
+  function poolRemaining(){
+    return Math.max(0, Math.round(CFG.TOTAL_SUPPLY * (CFG.POOL_SHARE_PCT / 100)) - S.mined);
+  }
+  function isOwner(){
+    var hard = String(CFG.OWNER_TELEGRAM_ID || '').trim();
+    if (hard) return UID === hard;
+    if (S.ownerId) return UID === S.ownerId;
+    return false;                       // never implicit
+  }
+
+  function ownerUnclaimed(){
+    return !String(CFG.OWNER_TELEGRAM_ID || '').trim() && !S.ownerId;
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     ads
+     ══════════════════════════════════════════════════════════════ */
+  var Ads = { actions: 0, last: 0, timer: null, gated: false, safety: null,
+    slot: function(el, kind){
+      if (!el) return;
+      var html = CFG.ADS.enabled ? (kind === 'banner' ? CFG.ADS.customBanner : CFG.ADS.customInterstitial) : '';
+      if (!html) {
+        // no tag, no container: an empty placeholder on the home screen is worse than nothing
+        el.innerHTML = '';
+        el.hidden = true;
+        if (CFG.ADS.showPlaceholders) {
+          el.hidden = false;
+          el.innerHTML = '<div class="adph">AD SLOT · PASTE YOUR PUBLISHER TAG IN CFG.ADS</div>';
+        }
+        return;
+      }
+      el.hidden = false;
+      el.innerHTML = html;
+      S.adViews++; save();
+    },
+    // mid-session interstitials were cancelled by the owner.
+    // Only the launch gate remains.
+    count: function(){ this.actions++; },
+    present: function(wait, mode){
+      var btn = $('adClose');
+      var overlay = $('adOverlay');
+      this.slot($('adBody'), 'interstitial');
+      overlay.classList.toggle('launch', mode !== 'mid');
+      overlay.classList.add('on');
+      btn.disabled = true;
+      var label = mode === 'gate' ? 'Ad playing · ' : 'Sponsored · ';
+      btn.textContent = label + wait + 's';
+      clearInterval(this.timer);
+      this.timer = setInterval(function(){
+        wait--;
+        if (wait <= 0) { clearInterval(Ads.timer); btn.disabled = false; btn.textContent = 'Continue'; }
+        else btn.textContent = label + wait + 's';
+      }, 1000);
+    },
+
+    // ACCESS GATE: the app stays hidden until the ad finishes
+    gate: function(){
+      if (!CFG.ADS.enabled || !CFG.ADS.onOpen || this.gated) return;
+      // H4 fix: never make users wait for an empty ad container
+      if (!CFG.ADS.customInterstitial) return;
+      this.gated = true;
+      this.last = Date.now();
+      try {
+        document.body.classList.add('gated');
+        this.present(CFG.ADS.launchCloseSeconds || 5, 'gate');
+      } catch (e) {
+        this.release();
+        return;
+      }
+
+      var self = this;
+      clearTimeout(this.safety);
+      this.safety = setTimeout(function(){
+        // if the ad network never fills, never leave the user stuck
+        if (self.gated) { self.release(); }
+      }, (CFG.ADS.gateMaxSeconds || 15) * 1000);
+    },
+
+    release: function(){
+      this.gated = false;
+      document.body.classList.remove('gated');
+      var ov = $('adOverlay');
+      ov.classList.remove('on');
+      ov.classList.remove('launch');
+      clearInterval(this.timer);
+      clearTimeout(this.safety);
+    },
+
+    close: function(){
+      if (this.gated) return this.release();
+      $('adOverlay').classList.remove('on');
+      clearInterval(this.timer);
+    },
+
+    show: function(){ /* removed: interstitials cancelled */ }
+  };
+
+  // Any ad network can call window.ArchAdComplete() when its ad finishes.
+  // Adsgram example:
+  //   const ctrl = window.Adsgram.init({ blockId: '1234' });
+  //   ctrl.show().then(() => window.ArchAdComplete());
+  window.ArchAdComplete = function(){ if (Ads.gated) Ads.release(); };
+
+  /* ══════════════════════════════════════════════════════════════
+     render
+     ══════════════════════════════════════════════════════════════ */
+  function renderAll(){
+    renderReactor();
+    renderTasks();
+    renderRefer();
+    renderWallet();
+    renderOwner();
+    Ads.slot($('ad1'),'banner'); Ads.slot($('ad2'),'banner');
+    Ads.slot($('ad3'),'banner'); Ads.slot($('ad4'),'banner'); Ads.slot($('ad5'),'banner');
+  }
+
+  function renderReactor(){
+    $('bal').textContent = fmt(S.balance);
+    $('minedLine').textContent = S.mined
+      ? fmt(S.mined) + ' ARCHIE earned · ' + fmt(S.claims) + ' claim' + (S.claims === 1 ? '' : 's')
+      : 'Nothing mined yet';
+    $('nextAmt').textContent = fmt(claimAmount(S.streak + 1));
+    $('streakBonus').textContent = '+' + Math.round(streakPct(S.streak) * 100) + '%';
+    var burned = S.burned || 0;
+    $('burnAmt').textContent = fmt(burned);
+    $('burnBar').classList.toggle('empty', burned === 0);
+    var d = dayKey();
+    if (S.earnedDay !== d) { S.earnedDay = d; S.earnedToday = 0; }
+    $('todayAmt').textContent = fmt(S.earnedToday || 0);
+
+    var hint = $('streakHint');
+    if (hint) {
+      if (!S.streak) {
+        hint.textContent = 'Claim daily to start a streak — up to +35%';
+        hint.className = 'streakhint';
+      } else {
+        hint.textContent = 'Streak ' + Math.min(S.streak, CFG.STREAK_MAX) + '/' + CFG.STREAK_MAX +
+          ' · claim within 48h or it resets';
+        hint.className = 'streakhint' + (S.streak >= CFG.STREAK_MAX ? ' warn' : '');
+      }
+    }
+
+    var row = $('streak');
+    row.innerHTML = '';
+    for (var i = 0; i < CFG.STREAK_MAX; i++) {
+      var d = document.createElement('div');
+      d.className = 'dot' + (i < Math.min(S.streak, CFG.STREAK_MAX) ? ' on' : '');
+      row.appendChild(d);
+    }
+    tick();
+  }
+
+  function tick(){
+    var p = chargePct();
+    var ready = p >= 1;
+    $('ring').style.strokeDashoffset = String(RING * (1 - p));
+    var core = $('core');
+    core.classList.toggle('ready', ready);
+
+    var coreEl = $('core');
+    if (coreEl) coreEl.setAttribute('aria-label', ready
+      ? 'Collect ' + fmt(claimAmount(S.streak + 1)) + ' ARCHIE'
+      : 'Charging, ' + $('tm').textContent + ' until the next claim');
+
+    if (ready) {
+      $('st').textContent = 'COLLECT';
+      $('tm').textContent = '+' + fmt(claimAmount(S.streak + 1)) + ' ARCHIE';
+    } else {
+      var left = Math.max(0, CFG.CYCLE_MS - (Date.now() - S.lastClaimAt));
+      var h = Math.floor(left / 3600000);
+      var m = Math.floor((left % 3600000) / 60000);
+      var s = Math.floor((left % 60000) / 1000);
+      $('st').textContent = 'CHARGING';
+      $('tm').textContent = h + 'h ' + String(m).padStart(2,'0') + 'm ' + String(s).padStart(2,'0') + 's';
+    }
+  }
+
+  function renderTasks(){
+    var box = $('tasks');
+    box.innerHTML = '';
+    if (!S.tasks.length) { box.innerHTML = '<div class="empty">No tasks yet — check back.</div>'; return; }
+    S.tasks.forEach(function(t){
+      var done = !!S.taskDone[t.id];
+      var el = document.createElement('div');
+      el.className = 'task' + (done ? ' done' : '');
+      el.innerHTML =
+        '<div class="st2">' + (done ? '✓' : '★') + '</div>' +
+        '<div class="mid"><div class="tt"></div><div class="tr">+' + fmt(t.reward) + ' ARCHIE</div></div>' +
+        '<div class="ta"></div>';
+      el.querySelector('.tt').textContent = t.title;
+      var btn = document.createElement('button');
+      btn.className = 'btn sm' + (done ? '' : ' primary');
+      btn.textContent = done ? 'Done' : 'Claim';
+      btn.disabled = done;
+      btn.addEventListener('click', function(ev){ ev.stopPropagation(); claimTask(t, btn); });
+      el.querySelector('.ta').appendChild(btn);
+      el.addEventListener('click', function(){
+        if (t.url) {
+          if (TG && TG.openTelegramLink && /^https:\/\/t\.me\//.test(t.url)) TG.openTelegramLink(t.url);
+          else window.open(t.url, '_blank', 'noopener');
+        }
+        Ads.count();
+      });
+      box.appendChild(el);
+    });
+  }
+
+  function renderRefer(){
+    var E = econ();
+    $('refCode').textContent = S.refCode;
+
+    var note = $('refNote');
+    if (note) note.textContent = 'They join with ' + fmt(E.refJoinBonus) + ' ARCHIE free · ' +
+      'you earn ' + Math.round(E.refRate * 100) + '% of everything they mine, forever.';
+
+    // B4-2: say plainly when the referrer cannot be reached from this device
+    var status = $('refStatus');
+    if (status) {
+      if (S.referredBy) {
+        var known = !!reg()[S.referredBy];
+        status.hidden = false;
+        status.textContent = known
+          ? 'You joined with code ' + S.referredBy + ' — your referrer earns from your mining.'
+          : 'You joined with code ' + S.referredBy + '. That referrer is not on this device, so their commission is not being recorded.';
+      } else {
+        status.hidden = true;
+      }
+    }
+
+    $('refCount').textContent = fmt(S.referrals.length);
+    var earned = S.referrals.reduce(function(a,r){ return a + (r.earned || 0); }, 0);
+    $('refEarned').textContent = fmt(earned);
+    var list = $('refList');
+    list.innerHTML = '';
+    if (!S.referrals.length) { list.innerHTML = '<div class="empty">No miners in your network yet.</div>'; return; }
+    S.referrals.slice(-12).reverse().forEach(function(r){
+      var d = document.createElement('div');
+      d.style.cssText = 'display:flex;justify-content:space-between;padding:10px 2px;border-bottom:1px solid #18213a;font-size:12.5px';
+      d.innerHTML = '<span></span><b style="color:var(--ok)">+' + fmt(r.earned || 0) + '</b>';
+      d.querySelector('span').textContent = r.name || 'Miner';
+      list.appendChild(d);
+    });
+  }
+
+  function renderWallet(){
+    var E = econ();
+    var open = S.withdrawalsOpen;
+
+    $('wdMin').textContent = fmt(E.minWithdraw);
+    $('wdFee').textContent = fmt(E.withdrawFee);
+
+    var pct = clamp((S.balance / E.minWithdraw) * 100, 0, 100);
+    $('wdProg').style.width = pct + '%';
+
+    var btn = $('wdBtn');
+    if (!open) {
+      btn.disabled = true;
+      btn.textContent = 'Withdrawals locked';
+      $('wdHint').textContent = S.balance >= E.minWithdraw
+        ? 'You have enough. The gate opens once payouts can be funded and recorded.'
+        : 'Mine to ' + fmt(E.minWithdraw) + ' ARCHIE to reach the minimum. You have ' + fmt(S.balance) + '.';
+    } else if (S.balance < E.minWithdraw) {
+      btn.disabled = true;
+      btn.textContent = 'Below minimum';
+      $('wdHint').textContent = 'Need ' + fmt(E.minWithdraw - S.balance) + ' more ARCHIE.';
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Withdraw ' + fmt(S.balance - E.withdrawFee);
+      $('wdHint').textContent = 'Fee of ' + fmt(E.withdrawFee) + ' ARCHIE is deducted first.';
+    }
+
+    $('wdSplit').textContent = CFG.FEE_SPLIT.burn + '% burn · ' +
+      CFG.FEE_SPLIT.liquidity + '% liquidity · ' + CFG.FEE_SPLIT.ops + '% ops';
+
+    var addr = S.token || CFG.TOKEN_ADDRESS;
+    $('tokenAddr').textContent = addr || 'not configured yet';
+
+    // minted is fixed forever at 2B; only "burned" and "remaining" move
+    $('sMinted').textContent = fmt(CFG.TOTAL_SUPPLY);
+    $('sLocked').textContent = fmt(Math.round(CFG.TOTAL_SUPPLY * (CFG.LOCKED_SHARE_PCT / 100)));
+    $('sBurned').textContent = fmt(S.burned || 0);
+    $('sRemaining').textContent = fmt(CFG.TOTAL_SUPPLY - (S.burned || 0));
+    if (window.Games && window.Games.paintChain) window.Games.paintChain();
+  }
+
+  function runSelfTest(){
+    var out = $('testOut');
+    var rows = [];
+    var add = function(state, label, detail){
+      rows.push({ state: state, label: label, detail: detail || '' });
+    };
+
+    // 1 storage
+    try {
+      localStorage.setItem('ar.selftest', '1');
+      var okStore = localStorage.getItem('ar.selftest') === '1';
+      localStorage.removeItem('ar.selftest');
+      add(okStore ? 'ok' : 'bad', 'Local storage', okStore ? 'writable' : 'blocked — the app cannot save');
+    } catch (e) { add('bad', 'Local storage', 'unavailable'); }
+
+    // 2 state integrity
+    var finite = isFinite(S.balance) && S.balance >= 0;
+    add(finite ? 'ok' : 'bad', 'Balance', fmt(S.balance) + ' ARCHIE');
+    add(Array.isArray(S.tasks) ? 'ok' : 'bad', 'Task list', (S.tasks || []).length + ' tasks');
+    add(Array.isArray(S.referrals) ? 'ok' : 'bad', 'Referral list', (S.referrals || []).length + ' referrals');
+
+    // 3 economics
+    var E = econ();
+    var econOk = E.claimBase >= 1 && E.refJoinBonus >= 0 && E.taskDailyLimit >= 1 &&
+                 E.withdrawFee < E.minWithdraw && E.refRate >= 0 && E.refRate <= 0.5;
+    add(econOk ? 'ok' : 'bad', 'Economics',
+        'claim ' + fmt(E.claimBase) + ' · min ' + fmt(E.minWithdraw) + ' · fee ' + fmt(E.withdrawFee));
+    if (E.withdrawFee >= E.minWithdraw) add('bad', 'Fee vs minimum', 'fee must be below the minimum');
+
+    // 4 game constants
+    var C = (window.Games && window.Games.constants) ? window.Games.constants() : null;
+    if (C) {
+      var gOk = C.CARDS === 10 && C.PICKS === 3 && C.GUESSES >= 5 && C.WIN_LIMIT >= 1 && C.MIN_WAGER > 0;
+      add(gOk ? 'ok' : 'bad', 'Card game', C.CARDS + ' cards · ' + C.PICKS + ' picks · ' + C.GUESSES + ' guesses');
+    } else add('warn', 'Card game', 'Games module not loaded');
+
+    // 5 price
+    var pv = (window.Games && window.Games.priceValue) ? window.Games.priceValue() : 0;
+    add(pv > 0 ? 'ok' : 'warn', 'Price feed', pv > 0 ? '$' + pv.toFixed(6) : 'not set — set PRICE_MANUAL_USD or PRICE_API');
+
+    // 6 token address
+    var tonAddr = /^(EQ|UQ|0:)[A-Za-z0-9_\-:]{10,}$/;
+    var token = S.token || CFG.TOKEN_ADDRESS;
+    add(tonAddr.test(token || '') ? 'ok' : 'warn', 'Token address', token || 'not set');
+
+    // 7 chain
+    var cs = (window.Games && window.Games.chainStatus) ? window.Games.chainStatus() : null;
+    var configured = !!(window.Games);
+    if (cs && cs.ok) add('ok', 'Pool on-chain', (cs.pool || 0).toLocaleString() + ' ARCHIE');
+    else if (cs) add('warn', 'Pool on-chain', cs.err === 'not configured'
+      ? 'set POOL_JETTON_WALLET in games.js' : 'chain unreachable right now');
+
+    // 8 ads
+    add(CFG.ADS.customInterstitial ? 'ok' : 'warn', 'Ad gate',
+        CFG.ADS.customInterstitial ? 'active with a tag' : 'inert — no tag pasted (no gate on open)');
+
+    // 9 owner binding
+    add(isOwner() ? 'ok' : 'bad', 'Owner binding', String(CFG.OWNER_TELEGRAM_ID || S.ownerId || 'not bound'));
+
+    // 10 storage size
+    try {
+      var bytes = 0;
+      for (var k in localStorage) if (k.indexOf('ar.') === 0) bytes += (localStorage[k] || '').length;
+      add(bytes < 300000 ? 'ok' : 'warn', 'Saved data', Math.round(bytes / 1024) + ' KB');
+    } catch (e) {}
+
+    var bad = rows.filter(function(r){ return r.state === 'bad'; }).length;
+    var warn = rows.filter(function(r){ return r.state === 'warn'; }).length;
+
+    out.innerHTML = rows.map(function(r){
+      var dot = r.state === 'ok' ? 'var(--ok)' : r.state === 'warn' ? 'var(--amber)' : 'var(--bad)';
+      return '<div style="display:flex;gap:9px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #18213a">' +
+        '<span style="width:9px;height:9px;border-radius:50%;margin-top:5px;flex:0 0 auto;background:' + dot + '"></span>' +
+        '<span style="flex:1;font-size:12px">' + r.label +
+        (r.detail ? '<div style="font-size:10.5px;color:var(--dim);margin-top:2px">' + r.detail + '</div>' : '') +
+        '</span></div>';
+    }).join('') +
+    '<div class="note" style="margin-top:10px">' +
+      (bad ? '<b style="color:var(--bad)">' + bad + ' problem(s) to fix</b>' :
+       warn ? '<b style="color:var(--amber)">' + warn + ' optional item(s) not set</b>' :
+       '<b style="color:var(--ok)">All checks passed</b>') + '</div>';
+    haptic(bad ? 'err' : 'ok');
+  }
+
+  function renderOwner(){
+    var own = isOwner();
+    var claimable = ownerUnclaimed();
+
+    // tab is visible while unclaimed so the owner can claim from a phone
+    $('ownerTab').hidden = !(own || claimable);
+    $('ownerBadge').hidden = !own;
+    $('ownerClaim').hidden = !(claimable && !own);
+    $('ownerBody').hidden = !own;
+    $('claimUid').textContent = UID;
+    if (!own) return;
+
+    $('oUsers').textContent = fmt(1 + (S.referrals || []).length);
+    $('oMined').textContent = fmt(S.mined);
+    $('oYou').textContent = fmt(Math.round(CFG.TOTAL_SUPPLY * (CFG.OWNER_SHARE_PCT / 100)));
+    // live on-chain pool when Games has read it, otherwise the local estimate
+    var livePool = (window.Games && window.Games.chainPool) ? window.Games.chainPool() : null;
+    $('oPool').textContent = livePool != null
+      ? (livePool / 1e6).toFixed(1) + 'M'
+      : (poolRemaining() / 1e6).toFixed(1) + 'M (local)';
+    var E = econ();
+    $('eBase').textContent = fmt(E.claimBase);
+    $('eRef').textContent = Math.round(E.refRate * 100) + '%';
+    $('eFee').textContent = fmt(E.withdrawFee);
+
+    var fields = { ecBase: E.claimBase, ecMaxTask: E.maxTaskReward, ecTaskDay: E.taskDailyLimit,
+                   ecMin: E.minWithdraw, ecFee: E.withdrawFee, ecRef: Math.round(E.refRate * 100),
+                   ecJoin: E.refJoinBonus };
+    for (var fid in fields) {
+      var el = $(fid);
+      if (el && document.activeElement !== el) el.value = fields[fid];
+    }
+    $('myId').textContent = UID;
+    $('wdToggle').classList.toggle('on', !!S.withdrawalsOpen);
+
+    if (document.activeElement !== $('tokenInput')) $('tokenInput').value = S.token || '';
+    if (document.activeElement !== $('poolInput')) $('poolInput').value = S.pool || '';
+
+    var tl = $('tList');
+    tl.innerHTML = '';
+    if (!S.tasks.length) { tl.innerHTML = '<div class="empty">No tasks.</div>'; return; }
+    S.tasks.forEach(function(t){
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #18213a';
+      row.innerHTML = '<div><div style="font-size:12.5px;font-weight:700"></div>' +
+        '<div style="font-size:10.5px;color:var(--dim);margin-top:2px">+' + fmt(t.reward) + ' ARCHIE</div></div>';
+      row.querySelector('div div').textContent = t.title;
+      var del = document.createElement('button');
+      del.className = 'btn sm ghost';
+      del.textContent = 'Remove';
+      del.style.color = 'var(--bad)';
+      del.addEventListener('click', function(){
+        S.tasks = S.tasks.filter(function(x){ return x.id !== t.id; });
+        save(); renderAll();
+      });
+      row.appendChild(del);
+      tl.appendChild(row);
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     actions
+     ══════════════════════════════════════════════════════════════ */
+  function collect(){
+    if (!isReady()) { toast('Still charging — ' + $('tm').textContent); haptic('err'); return; }
+    refreshFromStorage();
+    var now = Date.now();
+    var streak = !S.lastClaimAt || (now - S.lastClaimAt) <= CFG.CYCLE_MS * 2 ? S.streak + 1 : 1;
+    var amt = claimAmount(streak);
+
+    if (poolRemaining() < amt) { toast('The pool is empty'); return; }
+
+    S.streak = streak;
+    S.lastClaimAt = now;
+    S.claims++;
+    S.balance += amt;
+    S.mined += amt;
+    noteEarn(amt);
+    save();
+    creditReferrer(amt);
+    haptic('ok');
+    renderAll();
+    toast('+' + fmt(amt) + ' ARCHIE collected');
+    Ads.count();
+  }
+
+  function claimTask(task, btn){
+    if (S.taskDone[task.id]) return;
+
+    // H3: daily claim cap
+    var d = dayKey();
+    if (S.taskDay !== d) { S.taskDay = d; S.tasksToday = 0; }
+    if ((S.tasksToday || 0) >= econ().taskDailyLimit) {
+      toast('Daily task limit reached (' + econ().taskDailyLimit + ')');
+      btn.disabled = false; btn.textContent = 'Claim';
+      return;
+    }
+    // credit synchronously: a delayed credit could be re-triggered by a re-render.
+    // When a backend exists this becomes an await on the membership check.
+    var reward = Math.min(task.reward, econ().maxTaskReward);
+    S.taskDone[task.id] = Date.now();
+    S.tasksToday = (S.tasksToday || 0) + 1;
+    S.balance += reward;
+    S.mined += reward;
+    noteEarn(reward);
+    save();
+    creditReferrer(reward);
+    haptic('ok');
+    renderAll();
+    toast('+' + fmt(reward) + ' ARCHIE');
+  }
+
+  function switchTo(name){
+    var screens = document.querySelectorAll('.screen');
+    for (var i = 0; i < screens.length; i++) {
+      screens[i].classList.toggle('on', screens[i].getAttribute('data-s') === name);
+    }
+    var btns = document.querySelectorAll('.nav button');
+    for (var j = 0; j < btns.length; j++) {
+      btns[j].classList.toggle('on', btns[j].getAttribute('data-go') === name);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (name === 'reactor') renderReactor();
+    if (name === 'wallet') renderWallet();
+    if (name === 'tasks') renderTasks();
+    if (name === 'owner') renderOwner();
+    if (name === 'play' && window.Games) window.Games.render();
+    Ads.count();
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     boot
+     ══════════════════════════════════════════════════════════════ */
+  var DEMO_TASKS = [
+    { id: 't1', title: 'Join the Arch Reactor channel', url: 'https://t.me/telegram', reward: 25 },
+    { id: 't2', title: 'Follow the project on X', url: 'https://x.com/telegram', reward: 25 }
+  ];
+
+  function boot(){
+    S = load();
+
+    // H1 fix: seed only on a brand-new profile, never on an empty list
+    if (!Array.isArray(S.tasks)) { S.tasks = []; save(); }
+
+    // L3 fix: the old demo tasks pointed at real third-party channels
+    S.tasks = S.tasks.filter(function(t){ return String(t.id).indexOf('t_demo') !== 0; });
+    save();
+
+    // the owner's toggle wins; the config value is only the initial default
+    if (typeof S.withdrawalsOpen !== 'boolean') S.withdrawalsOpen = CFG.WITHDRAWALS_OPEN;
+    registerCode();
+
+    // H2 fix: an unfinished card round is settled as a loss (half returned)
+    if (S.cardRound && window.Games && window.Games.recoverRound) {
+      window.Games.recoverRound();
+    }
+
+    var ref = null;
+    try { ref = new URLSearchParams(location.search).get('ref'); } catch(e){}
+    if (ref && !S.referredBy && ref !== S.refCode) {
+      var bonus = econ().refJoinBonus;
+      S.referredBy = String(ref).slice(0, 12);
+      S.balance += bonus;
+      S.mined += bonus;
+      noteEarn(bonus);
+      save();
+      toast('Welcome bonus +' + fmt(bonus) + ' ARCHIE');
+      haptic('ok');
+    }
+
+    $('netBadge').textContent = tgUser ? 'LIVE' : 'DEMO';
+    if (tgUser) $('netBadge').className = 'badge live';
+
+    $('core').addEventListener('click', collect);
+    $('adClose').addEventListener('click', function(){ Ads.close(); });
+    $('shareRef').addEventListener('click', function(){
+      var link = location.origin + location.pathname + '?ref=' + S.refCode;
+      var text = 'Mine ARCHIE in Arch Reactor — we both earn.';
+      haptic();
+      if (TG && TG.openTelegramLink) {
+        TG.openTelegramLink('https://t.me/share/url?url=' + encodeURIComponent(link) +
+          '&text=' + encodeURIComponent(text));
+      } else if (navigator.share) {
+        navigator.share({ text: text + ' ' + link }).catch(function(){});
+      } else {
+        copyText(link).then(function(){ toast('Invite link copied'); });
+      }
+      Ads.count();
+    });
+
+    $('copyRef').addEventListener('click', function(){
+      var link = location.origin + location.pathname + '?ref=' + S.refCode;
+      copyText(link).then(function(){ toast('Invite link copied'); haptic(); Ads.count(); });
+    });
+    $('wdBtn').addEventListener('click', function(){
+      // C2 fix: this build has no ledger, so it must not touch the balance.
+      if (!S.withdrawalsOpen) return toast('Withdrawals are locked');
+      if (S.balance < econ().minWithdraw) return toast('Below minimum');
+      toast('Withdrawals need the ledger service — not available in this build');
+    });
+    $('wdToggle').addEventListener('click', function(){
+      if (!isOwner()) return;
+      if (!S.withdrawalsOpen) {
+        if (!confirm('Open the withdrawal panel? Payouts still require the ledger and funded gas — the button will refuse until those exist.')) return;
+      }
+      S.withdrawalsOpen = !S.withdrawalsOpen;
+      save(); renderAll();
+      toast(S.withdrawalsOpen ? 'Panel open — payouts still need the ledger' : 'Withdrawal panel locked');
+    });
+    $('saveToken').addEventListener('click', function(){
+      if (!isOwner()) return;
+      var tok = $('tokenInput').value.trim();
+      var pool = $('poolInput').value.trim();
+      var tonAddr = /^(EQ|UQ|0:)[A-Za-z0-9_\-:]{10,}$/;
+      if (tok && !tonAddr.test(tok)) return toast('That is not a TON address');
+      if (pool && !tonAddr.test(pool)) return toast('That is not a TON address');
+      S.token = tok;
+      S.pool = pool;
+      save(); renderAll();
+      toast('Saved on this device');
+    });
+    $('ecSave').addEventListener('click', function(){
+      if (!isOwner()) return toast('Owner only');
+      var v = function(id){ return Number($(id).value); };
+      var next = {
+        claimBase: Math.max(1, Math.floor(v('ecBase') || 0)),
+        maxTaskReward: Math.max(1, Math.floor(v('ecMaxTask') || 0)),
+        taskDailyLimit: Math.max(1, Math.floor(v('ecTaskDay') || 0)),
+        minWithdraw: Math.max(1, Math.floor(v('ecMin') || 0)),
+        withdrawFee: Math.max(0, Math.floor(v('ecFee') || 0)),
+        refRate: Math.min(0.5, Math.max(0, (v('ecRef') || 0) / 100)),
+        refJoinBonus: Math.max(0, Math.floor(v('ecJoin') || 0))
+      };
+      if (next.withdrawFee >= next.minWithdraw) return toast('Fee must be below the minimum');
+      S.econ = next; save(); renderAll(); toast('Economics saved');
+    });
+
+    $('ecReset').addEventListener('click', function(){
+      if (!isOwner()) return toast('Owner only');
+      S.econ = null; save(); renderAll(); toast('Defaults restored');
+    });
+
+    $('claimBtn').addEventListener('click', function(){
+      var code = $('claimCode').value.trim();
+      if (!code) return toast('Enter the claim phrase');
+      if (code !== String(CFG.OWNER_CLAIM_CODE)) return toast('Wrong phrase');
+      if (!tgUser) {
+        return toast('Open inside Telegram — a browser id is not portable');
+      }
+      S.ownerId = UID;
+      save(); renderAll();
+      toast('You are the owner of this app');
+      haptic('ok');
+    });
+
+    $('selfTest').addEventListener('click', function(){
+      if (!isOwner()) return toast('Owner only');
+      runSelfTest();
+    });
+
+    var release = $('releaseOwner');
+    if (release) release.addEventListener('click', function(){
+      if (!isOwner()) return;
+      if (String(CFG.OWNER_TELEGRAM_ID || '').trim()) {
+        return toast('Ownership is hardcoded in config — edit OWNER_TELEGRAM_ID to change it');
+      }
+      S.ownerId = '';
+      save(); renderAll();
+      toast('Ownership released — claim again with the phrase');
+    });
+
+    var copyId = $('copyOwnerId');
+    if (copyId) copyId.addEventListener('click', function(){
+      copyText(String(CFG.OWNER_TELEGRAM_ID || S.ownerId || UID)).then(function(){
+        toast('Copied — paste into CFG.OWNER_TELEGRAM_ID');
+      });
+    });
+
+    $('tAdd').addEventListener('click', function(){
+      if (!isOwner()) return;
+      var title = $('tTitle').value.trim();
+      var url = $('tUrl').value.trim();
+      var reward = Math.floor(Number($('tReward').value || 0));
+      if (!title || !reward) return toast('Title and reward are required');
+      if (reward > econ().maxTaskReward) return toast('Max reward is ' + fmt(econ().maxTaskReward));
+      if (url && !/^https:\/\//i.test(url)) return toast('Link must start with https://');
+      S.tasks.push({ id: 't' + Date.now(), title: title, url: url, reward: reward });
+      $('tTitle').value = ''; $('tUrl').value = ''; $('tReward').value = '';
+      save(); renderAll();
+      toast('Task added');
+    });
+
+    var nav = document.querySelectorAll('.nav button');
+    for (var i = 0; i < nav.length; i++) {
+      nav[i].addEventListener('click', function(){ switchTo(this.getAttribute('data-go')); });
+    }
+
+    renderAll();
+    setInterval(tick, 1000);
+    document.addEventListener('visibilitychange', function(){ if (!document.hidden) renderAll(); });
+
+    // hard gate: block access until the ad finishes
+    if (CFG.ADS.enabled && CFG.ADS.onOpen) Ads.gate();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+
+  // small bridge so games.js can read/write the economy
+  window.Arch = {
+    get state(){ return S; },
+    cfg: CFG,
+    uid: UID,
+    name: UNAME,
+    saveNow: function(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} },
+    save: function(){ save(); },
+    render: function(){ renderAll(); },
+    toast: toast,
+    fmt: fmt,
+    haptic: function(k){ haptic(k); }
+  };
+})();
+</script>
+<script src="./games.js"></script>
+</body>
+</html>
